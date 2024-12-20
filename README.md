@@ -18,7 +18,7 @@ This section covers setting up the environment and dependencies to run the proje
 
 Ensure the following services are installed and running:
 
-- **Node.js**
+- **Node.js** - v16.13.2
 - **MySQL** (for database)
 - **Redis** (for caching)
 - **RabbitMQ** (for messaging queue)
@@ -28,78 +28,52 @@ Ensure the following services are installed and running:
 Clone this repository and install the required dependencies.
 
 ```bash
-git clone https://github.com/your-repository/event-booking-system.git
-cd event-booking-system
+git clone https://github.com/KarthikaAvedhya/EventBookingSystem.git
+cd EventBookingSystem
 npm install
 2. Set Up MySQL
 Install MySQL
-If MySQL is not already installed, follow these instructions based on your OS:
+Create Database : "ebs"
 
-Install MySQL on Windows
-Install MySQL on macOS
-Install MySQL on Linux
-Create Database
-Log into MySQL:
-bash
-Copy code
-mysql -u root -p
-Create a new database:
-sql
-Copy code
-CREATE DATABASE ebs;
-Use this database:
-sql
-Copy code
-USE ebs;
+command : CREATE DATABASE ebs;
+SQL Scripts
 Create tables (e.g., events, bookings, etc.) based on your schema. Here's an example for the events table:
-sql
-Copy code
+
 CREATE TABLE events (
-  event_id INT AUTO_INCREMENT PRIMARY KEY,
+  id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   capacity INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  status VARCHAR(50) NOT NULL
+  status BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE TABLE bookings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  event_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  status BOOLEAN NOT NULL DEFAULT true
 );
 3. Set Up Redis
 Install Redis
 Install Redis on Windows
-Install Redis on macOS using Homebrew
-bash
-Copy code
-brew install redis
-Install Redis on Linux
 Start Redis
 To start the Redis server, use the following command:
 
 bash
-Copy code
 redis-server
 Ensure Redis is running and accepting connections by typing PING in the Redis CLI, and it should return PONG.
 
 4. Set Up RabbitMQ
 Install RabbitMQ
 Install RabbitMQ on Windows
-Install RabbitMQ on macOS
-Install RabbitMQ on Linux
 Start RabbitMQ
 To start RabbitMQ, run the following command:
 
-bash
-Copy code
 rabbitmq-server
 Make sure RabbitMQ is running by visiting the RabbitMQ Management UI. The default username and password are guest and guest.
-
-5. Configure the Application
-The application relies on several environment variables for configuration. Create a .env file at the root of the project and add the following variables:
-
-bash
-Copy code
-MYSQL_HOST=localhost
-MYSQL_USER=root
-MYSQL_PASSWORD=your_password
-MYSQL_DATABASE=ebs
 
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
@@ -113,26 +87,17 @@ These variables configure MySQL, Redis, RabbitMQ, and the server port. Make sure
 Start the API Server
 To run the application, use the following command:
 
-bash
-Copy code
-npm start
-This will start the server on port 8000 (or the port defined in the .env file). The API is now accessible.
+node app.js - to execute the apis
+This will start the server on port 8000. The API is now accessible.
 
 Start RabbitMQ Consumers
 If you have RabbitMQ consumers (e.g., for sending email notifications), you can start them separately using the following command:
-
-bash
-Copy code
 npm run start:consumer
 This will listen to the RabbitMQ queue and process any tasks sent by the application (such as email notifications).
 
 7. Running Tests
 To run the tests for the application, use the following command:
-
-bash
-Copy code
-npm test
-Make sure your testing framework is set up (e.g., Jest). This will run the tests and output the results.
+node app.js
 
 8. Example API Calls
 Here are a few example API calls to test the system:
@@ -140,53 +105,29 @@ Here are a few example API calls to test the system:
 Create Event
 POST /events
 
-bash
-Copy code
-curl -X POST http://localhost:8000/events -H "Content-Type: application/json" -d '{
+Postman : http://localhost:8000/events 
+Request body:
+{
     "name": "Music Concert",
-    "capacity": 500,
-    "status": "active"
+    "capacity": 10,
+    "status": true
 }'
 Response:
-
-json
-Copy code
 {
     "status": "true",
     "message": "Event created successfully",
     "eventId": 1
 }
-Get Event Details
-GET /events/:id
 
-bash
-Copy code
-curl http://localhost:8000/events/1
-Response:
-
-json
-Copy code
+Postman :  http://localhost:8000/book 
+Request body :
 {
-    "status": "true",
-    "event": {
-        "event_id": 1,
-        "name": "Music Concert",
-        "capacity": 500,
-        "created_at": "2024-12-20T10:00:00",
-        "updated_at": "2024-12-20T10:00:00",
-        "status": "active"
-    }
+    "user_id":1,
+    "event_id":1,
+    "status":true
 }
 Get Booking Count for Event
-GET /events/:id/booking-count
-
-bash
-Copy code
-curl http://localhost:8000/events/1/booking-count
-Response:
-
-json
-Copy code
+GET /events/bookingCount
 {
     "status": "true",
     "bookingCount": 25
