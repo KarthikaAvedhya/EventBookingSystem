@@ -29,35 +29,29 @@ module.exports.createEvent = async (req, res) => {
 module.exports.bookEvent = async (req, res) => {
     try {
         const { user_id, event_id } = req.body;
-console.log("bodyyyyyy",req.body )
-        // Check the current booking count using Redis first
-        redisClient.get(`event:${event_id}:bookingCount`, async (err, count) => {
-            if (err) {
-                console.error("Redis error:", err);
-                return res.status(500).json({ error: 'Error connecting to Redis' });
-            }
-console.log("counttt", count)
-            // If the count is not cached, fetch it from the database
-            if (!count) {
-                let sql = `SELECT COUNT(*) AS bookingCount FROM bookings WHERE event_id = ?`;
-                mysqlConnection.query(sql, [event_id], (err, result) => {
-                    if (err) {
-                        console.error("MySQL query error:", err);
-                        return res.status(500).json({ error: 'Database error while fetching booking count' });
-                    }
 
-                    // Store the booking count in Redis
-                    redisClient.set(`event:${event_id}:bookingCount`, result[0].bookingCount);
-                    count = result[0].bookingCount;
+        let count = await redisClient.get(`event:${event_id}:bookingCount`);
+        // If the count is not cached, fetch it from the database
+        if (!count) {
+            let sql = `SELECT COUNT(*) AS bookingCount FROM bookings WHERE event_id = ?`;
+            mysqlConnection.query(sql, [event_id], (err, result) => {
+                if (err) {
+                    console.error("MySQL query error:", err);
+                    return res.status(500).json({ error: 'Database error while fetching booking count' });
+                }
 
-                    // Continue booking logic
-                    checkAndBookEvent(count, event_id, user_id, res);
-                });
-            } else {
-                // Proceed with booking logic if count is cached
+                // Store the booking count in Redis
+                redisClient.set(`event:${event_id}:bookingCount`, result[0].bookingCount);
+                count = result[0].bookingCount;
+
+                // Continue booking logic
                 checkAndBookEvent(count, event_id, user_id, res);
-            }
-        });
+            });
+        } else {
+            // Proceed with booking logic if count is cached
+            checkAndBookEvent(count, event_id, user_id, res);
+        }
+
     } catch (err) {
         console.error("Error: ", err);
         res.status(500).json({ error: err.message });
@@ -73,43 +67,45 @@ const checkAndBookEvent = (count, event_id, user_id, res) => {
             console.error("MySQL query error:", err);
             return res.status(500).json({ error: 'Error fetching event details' });
         }
-
-        let eventCapacity = event[0].capacity;
-
-        // If capacity exceeded, return error
-        if (count >= eventCapacity) {
-            return res.status(400).json({ status: 'false', message: "Event capacity exceeded" });
-        }
-
-        // Prevent duplicate booking by the same user
-        const bookingSql = `SELECT * FROM bookings WHERE event_id = ? AND user_id = ?`;
-        mysqlConnection.query(bookingSql, [event_id, user_id], async (err, result) => {
-            if (err) {
-                console.error("MySQL query error:", err);
-                return res.status(500).json({ error: 'Error checking duplicate bookings' });
+        if (event.length > 0) {
+            let eventCapacity = event[0].capacity;
+            // If capacity exceeded, return error
+            if (count >= eventCapacity) {
+                return res.status(400).json({ status: 'false', message: "Event capacity exceeded" });
             }
 
-            if (result.length > 0) {
-                return res.status(400).json({ status: 'false', message: "Duplicate booking detected" });
-            }
-
-            // Proceed with booking
-            let bookingSqlInsert = `INSERT INTO bookings (event_id, user_id, created_at) VALUES (?, ?, ?)`;
-            mysqlConnection.query(bookingSqlInsert, [event_id, user_id, new Date()], (err, data) => {
+            // Prevent duplicate booking by the same user
+            const bookingSql = `SELECT * FROM bookings WHERE event_id = ? AND user_id = ?`;
+            mysqlConnection.query(bookingSql, [event_id, user_id], async (err, result) => {
                 if (err) {
                     console.error("MySQL query error:", err);
-                    return res.status(500).json({ error: 'Error while booking event' });
+                    return res.status(500).json({ error: 'Error checking duplicate bookings' });
                 }
 
-                // Update booking count in Redis
-                redisClient.incr(`event:${event_id}:bookingCount`);
+                if (result.length > 0) {
+                    return res.status(400).json({ status: 'false', message: "Duplicate booking detected" });
+                }
 
-                // Send RabbitMQ message for email notification
-                sendRabbitMQMessage(event_id, user_id);
+                // Proceed with booking
+                let bookingSqlInsert = `INSERT INTO bookings (event_id, user_id, created_at) VALUES (?, ?, ?)`;
+                mysqlConnection.query(bookingSqlInsert, [event_id, user_id, new Date()], (err, data) => {
+                    if (err) {
+                        console.error("MySQL query error:", err);
+                        return res.status(500).json({ error: 'Error while booking event' });
+                    }
 
-                res.status(200).json({ status: 'true', message: 'Event booked successfully' });
+                    // Update booking count in Redis
+                    redisClient.incr(`event:${event_id}:bookingCount`);
+
+                    // Send RabbitMQ message for email notification
+                    sendRabbitMQMessage(event_id, user_id);
+
+                    res.status(200).json({ status: 'true', message: 'Event booked successfully' });
+                });
             });
-        });
+        } else {
+            return res.status(404).json({ message: 'No events found' });
+        }
     });
 };
 
@@ -132,7 +128,6 @@ const sendRabbitMQMessage = (event_id, user_id) => {
                 userId: user_id,
                 message: 'Booking confirmed'
             });
-
             // Send message to RabbitMQ
             channel.sendToQueue('email_notifications', Buffer.from(message));
             console.log('Message sent to RabbitMQ');
@@ -143,15 +138,11 @@ const sendRabbitMQMessage = (event_id, user_id) => {
 // Get Event Booking Count API
 module.exports.getEventBookingCount = async (req, res) => {
     try {
-        let { eventId } = req.params;
-
+        let eventId  = req.params.id;
+        
         // First check if the booking count is cached in Redis
-        redisClient.get(`event:${eventId}:bookingCount`, (err, count) => {
-            if (err) {
-                console.error("Redis error:", err);
-                return res.status(500).json({ error: 'Error fetching booking count from Redis' });
-            }
-
+       
+        let count = await redisClient.get(`event:${eventId}:bookingCount`);
             if (count) {
                 return res.status(200).json({ status: 'true', bookingCount: count });
             }
@@ -168,7 +159,7 @@ module.exports.getEventBookingCount = async (req, res) => {
                 redisClient.set(`event:${eventId}:bookingCount`, result[0].bookingCount);
                 res.status(200).json({ status: 'true', bookingCount: result[0].bookingCount });
             });
-        });
+       
     } catch (err) {
         console.error("Error: ", err);
         res.status(500).json({ error: err.message });

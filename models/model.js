@@ -13,35 +13,25 @@ const mysqlConnection = mysql.createConnection({
 mysqlConnection.connect((err) => {
     if (err) {
         console.error("MySQL connection error:", err);
-        process.exit(1); // Exit if MySQL connection fails
     }
     console.log("MySQL connection successful");
 });
 
 // Redis Connection
 const redisClient = redis.createClient({
-    socket: {
-        host: '127.0.0.1',
-        port: 6379,
-    },
+    url: 'redis://127.0.0.1:6379', // Use the URL format
 });
 
-redisClient.on('connect', () => {
-    console.log("Redis connection successful");
-});
-
-redisClient.on('error', (err) => {
-    console.error("Redis connection error:", err);
-    process.exit(1); // Exit if Redis connection fails
-});
-
-// Initialize Redis connection (only once here)
 (async () => {
     try {
-        await redisClient.connect();
-        console.log("Redis client initialized");
+        await redisClient.connect(); // Explicitly connect the Redis client
+        console.log("Redis connection successful");
+
+        // Example: Get a key-value pair after connecting
+        const value = await redisClient.get("event:123:bookingCount");
+        console.log("Redis GET response:", value);
     } catch (err) {
-        console.error("Redis initialization error:", err);
+        console.error("Redis connection error:", err);
         process.exit(1); // Exit if Redis initialization fails
     }
 })();

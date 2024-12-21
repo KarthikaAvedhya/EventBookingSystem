@@ -21,7 +21,7 @@ Ensure the following services are installed and running:
 - **Node.js** - v16.13.2
 - **MySQL** (for database)
 - **Redis** (for caching)
-- **RabbitMQ** (for messaging queue)
+- **RabbitMQ** (for messaging queue) , Erlang/OTP
 
 ### 1. Install Dependencies
 
@@ -54,26 +54,31 @@ CREATE TABLE bookings (
   event_id INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  status BOOLEAN NOT NULL DEFAULT true
+  status BOOLEAN NOT NULL DEFAULT true,
+  CONSTRAINT fk_event_id FOREIGN KEY (event_id) REFERENCES events(id) 
 );
+
 3. Set Up Redis
 Install Redis
 Install Redis on Windows
 Start Redis
 To start the Redis server, use the following command:
-
-bash
 redis-server
 Ensure Redis is running and accepting connections by typing PING in the Redis CLI, and it should return PONG.
 
 4. Set Up RabbitMQ
+Before intalling RabbitMQ, Need to install erlang/OTP (v15.2)
 Install RabbitMQ
 Install RabbitMQ on Windows
 Start RabbitMQ
 To start RabbitMQ, run the following command:
+In command prompt run the command  -> rabbitmq-plugins enable rabbitmq_management
 
-rabbitmq-server
-Make sure RabbitMQ is running by visiting the RabbitMQ Management UI. The default username and password are guest and guest.
+rabbitmq-server stop
+rabbitmq-server start
+
+To see in UI : localhost:15672  --> Login page appears
+The default username and password are guest and guest.
 
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
@@ -90,11 +95,6 @@ To run the application, use the following command:
 node app.js - to execute the apis
 This will start the server on port 8000. The API is now accessible.
 
-Start RabbitMQ Consumers
-If you have RabbitMQ consumers (e.g., for sending email notifications), you can start them separately using the following command:
-npm run start:consumer
-This will listen to the RabbitMQ queue and process any tasks sent by the application (such as email notifications).
-
 7. Running Tests
 To run the tests for the application, use the following command:
 node app.js
@@ -102,6 +102,7 @@ node app.js
 8. Example API Calls
 Here are a few example API calls to test the system:
 
+APIS are tested using POSTMAN (install)
 Create Event
 POST /events
 
@@ -123,11 +124,10 @@ Postman :  http://localhost:8000/book
 Request body :
 {
     "user_id":1,
-    "event_id":1,
-    "status":true
+    "event_id":1
 }
 Get Booking Count for Event
-GET /events/bookingCount
+GET /events/bookingCount/:id
 {
     "status": "true",
     "bookingCount": 25
