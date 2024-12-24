@@ -129,8 +129,19 @@ const sendRabbitMQMessage = (event_id, user_id) => {
                 message: 'Booking confirmed'
             });
             // Send message to RabbitMQ
-            channel.sendToQueue('email_notifications', Buffer.from(message));
+            channel.sendToQueue('emailNotifications', Buffer.from(message));
             console.log('Message sent to RabbitMQ');
+
+            // Consume messages
+            channel.consume('emailNotifications', (message) => {
+                if (message) {
+                    const content = message.content.toString();
+                    console.log('Received message:', content);
+
+                    // Acknowledge the messageS
+                    channel.ack(message);
+                }
+            }, { noAck: false });
         });
     });
 };
